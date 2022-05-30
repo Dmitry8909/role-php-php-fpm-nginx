@@ -6,3 +6,6 @@
 
   roles:
     - nginx_ubuntu
+    - php_ubuntu
+    - nginx_centos
+    - php_ubuntu
