@@ -1,0 +1,105 @@
+---
+# tasks file for php
+  - name: installing dependencies php php-fpm
+    become: yes
+    apt:
+      name:
+      - build-essential
+      - autoconf
+      - re2c
+      - bison
+      - libsqlite3-dev
+      - libpq-dev
+      - libonig-dev
+      - libfcgi-dev
+      - libfcgi0ldbl
+      - libjpeg-dev
+      - libpng-dev
+      - libssl-dev
+      - libxml2-dev
+      - libcurl4-openssl-dev
+      - libxpm-dev
+      - libgd-dev
+      - libmysqlclient-dev
+      - libfreetype6-dev
+      - libxslt1-dev
+      - libpspell-dev
+      - libzip-dev
+      - libgccjit-10-dev
+      update_cache: yes
+
+  - name: downloading source files
+    get_url:
+      url: "{{ php_tarball_url }}"
+      dest: "/tmp/{{ php_version }}.tar.gz"
+
+  - name: unpacking PHP
+    unarchive:
+      copy: no
+      dest: /tmp/
+      src: "/tmp/{{ php_version }}.tar.gz"
+
+  - name: configuring PHP PHP-HPM
+    command: "./configure \
+      --prefix={{ php_local_path }} \
+      --with-config-file-path={{ php_conf_path }} \
+      --enable-cli \
+      --enable-fpm \
+      --with-fpm-user=www-data \
+      --with-fpm-group=www-data \
+      --with-mysqli"
+    args:
+      chdir: "{{ php_install_dir }}"
+
+  - name: make and install PHP
+    command: >
+      {{ item }}
+    args:
+      chdir: "{{ php_install_dir }}"
+    with_items:
+      - make
+      - make install
+
+  - name: copy in dir
+    command: "{{ item }}"
+    with_items:
+      - "cp {{ php_install_dir }}/php.ini-development {{ php_local_path }}/php.ini"
+      - "cp {{ php_local_path }}/etc/php-fpm.d/www.conf.default {{ php_local_path }}/etc/php-fpm.d/www.conf"
+      - "cp {{ php_install_dir }}/sapi/fpm/php-fpm /usr/local/bin/"
+      - "cp {{ php_local_path }}/etc/php-fpm.conf.default {{ php_local_path }}/etc/php-fpm.conf"                        
+
+  - name: template nginx
+    template:
+      src: nginx.conf.j2
+      dest: /etc/nginx/nginx.conf
+      owner: root
+      group: root
+      mode: '0644'
+
+  - name: template php
+    template:
+      src: php-fpm.conf.j2
+      dest: /usr/local/php8/etc/php-fpm.conf
+      owner: root
+      group: root
+      mode: '0644'
+
+
+  - name: copy unit php8-fpm.service
+    copy:
+      src: php8-fpm.service
+      dest: /lib/systemd/system/php8-fpm.service
+      owner: root
+      group: root
+      mode: '0644'
+
+  - name: PHP8-FPM autorun, started
+    systemd:
+      name: php8-fpm
+      enabled: yes
+      state: started
+
+  - name: nginx restart
+    systemd:
+      name: nginx
+      state: restarted

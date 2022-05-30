@@ -1,0 +1,68 @@
+---
+# tasks file for role-php-nginx
+  - name: installing dependencies nginx
+    become: yes
+    command: "yum install \
+        pcre-devel \
+        zlib-devel \
+        openssl-devel \
+        pcre-devel \
+        gcc \
+        make \
+        autoconf \
+        automake -y"
+
+  - name: downloading source files NGINX
+    get_url:
+      url: "{{ nginx_tarball_url }}"
+      dest: "/tmp/{{ nginx_version }}.tar.gz"
+
+  - name: unpacking NGINX
+    unarchive:
+      copy: no
+      dest: /tmp/
+      src: "/tmp/{{ nginx_version }}.tar.gz"
+
+  - name: creating dir NGINX
+    become: yes
+    file:
+      path: /etc/nginx
+      state: directory
+      owner: root
+      mode: 0755 
+
+  - name: configuring NGINX
+    command: "./configure \
+      --sbin-path={{ nginx_sbin_path }} \
+      --conf-path={{ nginx_conf_path }} \
+      --error-log-path={{ nginx_log_err_path }} \
+      --http-log-path={{ nginx_http_log_path }} \
+      --pid-path={{ nginx_pid_path }} {{ nginx_with_http_ssl_module }}"
+    args:
+      chdir: "{{ nginx_install_dir }}"
+
+  - name: make and install NGINX
+    command: >
+      {{ item }}
+    args:
+      chdir: "{{ nginx_install_dir }}"
+    with_items:
+      - make
+      - make install
+    tags: dnf
+
+  - name: copy nginx.service
+    copy:
+      src: nginx.service
+      dest: /lib/systemd/system/nginx.service
+      owner: root
+      group: root
+      mode: '0644'
+    tags: copy
+
+  - name: nginx restart
+    systemd:
+      name: nginx
+      enabled: yes
+      state: started
+    tags: nginx

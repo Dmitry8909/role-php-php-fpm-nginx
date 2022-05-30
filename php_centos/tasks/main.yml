@@ -1,0 +1,103 @@
+---
+# tasks file for php
+  - name: installing dependencies php php-fpm
+    become: yes
+    command: " yum install \
+      gcc \
+      make \
+      libxml2-devel \
+      openssl-devel \
+      curl-devel \
+      curl \
+      libjpeg-devel \
+      libpng-devel \
+      freetype-devel \
+      sqlite-devel \
+      libmcrypt-devel \
+      postgresql-devel -y"
+
+  - name: downloading source files
+    get_url:
+      url: "{{ php_tarball_url }}"
+      dest: "/tmp/{{ php_version }}.tar.gz"
+
+  - name: Unpacking PHP
+    unarchive:
+      copy: no
+      dest: /tmp/
+      src: "/tmp/{{ php_version }}.tar.gz"
+
+  - name: configuring PHP PHP-HPM
+    command: "./configure \
+      --prefix={{ php_local_path }} \
+      --with-config-file-path={{ php_conf_path }} \
+      --enable-cli \
+      --enable-fpm \
+      --with-fpm-user=www-data \
+      --with-fpm-group=www-data \
+      --with-mysqli"
+    args:
+      chdir: "{{ php_install_dir }}"
+
+  - name: make and install PHP
+    command: >
+      {{ item }}
+    args:
+      chdir: "{{ php_install_dir }}"
+    with_items:
+      - make
+      - make install
+
+  - name: copy in dir
+    command: "{{ item }}"
+    with_items:
+      - "cp {{ php_install_dir }}/php.ini-development {{ php_local_path }}/php.ini"
+      - "cp {{ php_local_path }}/etc/php-fpm.d/www.conf.default {{ php_local_path }}/etc/php-fpm.d/www.conf"
+      - "cp {{ php_install_dir }}/sapi/fpm/php-fpm /usr/local/bin/"
+      - "cp {{ php_local_path }}/etc/php-fpm.conf.default {{ php_local_path }}/etc/php-fpm.conf"                        
+
+  - name: create group www-data
+    group:
+      name: www-data
+
+  - name: create user www-data
+    user:
+      name: www-data
+      group: www-data
+      append: yes
+
+  - name: template nginx
+    template:
+      src: nginx.conf.j2
+      dest: /etc/nginx/nginx.conf
+      owner: root
+      group: root
+      mode: '0644'
+
+  - name: template php
+    template:
+      src: php-fpm.conf.j2
+      dest: /usr/local/php8/etc/php-fpm.conf
+      owner: root
+      group: root
+      mode: '0644'
+
+  - name: copy unit php8-fpm.service
+    copy:
+      src: php8-fpm.service
+      dest: /lib/systemd/system/php8-fpm.service
+      owner: root
+      group: root
+      mode: '0644'
+
+  - name: PHP8-FPM autorun, started
+    systemd:
+      name: php8-fpm
+      enabled: yes
+      state: started
+
+  - name: nginx restart
+    systemd:
+      name: nginx
+      state: restarted
+

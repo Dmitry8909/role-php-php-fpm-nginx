@@ -1,0 +1,7 @@
+---
+# handlers file for role-php-nginx
+  - name: nginx_service_start
+    systemd:
+      name: nginx
+      enabled: yes
+      state: started
